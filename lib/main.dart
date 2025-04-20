@@ -4,22 +4,177 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 
-void main() {
-  runApp(MaterialApp(home: MyApp()));
+//import 'station_marker_loader.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart' as services;
+import 'package:flutter/material.dart';
+import 'package:pie_chart/pie_chart.dart' as pie;
+import 'package:fl_chart/fl_chart.dart' as fl;
+
+class StationMarkerLoader {
+  static Future<List<Marker>> loadMarkersFromAssetWithCallback(
+    Function(String) onTapCallback,
+  ) async {
+    try {
+      String jsonString = await services.rootBundle.loadString(
+        'assets/indicateurs.json',
+      );
+      var jsonData = jsonDecode(jsonString);
+
+      if (jsonData != null &&
+          jsonData['data'] != null &&
+          jsonData['data'] is List) {
+        List<dynamic> features = jsonData['data'];
+        List<Marker> markersList = [];
+
+        for (var feature in features.take(1000)) {
+          if (feature['libelle_station'] != null &&
+              feature['latitude'] != null &&
+              feature['longitude'] != null) {
+            String libelleStation = feature['libelle_station'];
+            double latitude = feature['latitude'];
+            double longitude = feature['longitude'];
+
+            markersList.add(
+              Marker(
+                point: LatLng(latitude, longitude),
+                width: 40,
+                height: 40,
+                child: GestureDetector(
+                  onTap: () {
+                    print("$libelleStation cliqué");
+                    onTapCallback(libelleStation);
+                  },
+                  child: Icon(Icons.location_on, size: 15, color: Colors.red),
+                ),
+              ),
+            );
+          }
+        }
+        return markersList;
+      } else {
+        return [];
+      }
+    } catch (e) {
+      print("Erreur lors du chargement des marqueurs : $e");
+      return [];
+    }
+  }
 }
 
-class MyApp extends StatelessWidget {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
+}
+
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  String selectedStation = 'Aucune';
+  Map<String, Map<String, double>> stationFishData = {}; // Toutes les données espèces/stations
+  Map<String, double> pieData = {}; // Données à afficher dans le PieChart
+
+  void updateSelectedStation(String name) {
+    setState(() {
+      selectedStation = name;
+      pieData = stationFishData[name] ?? {}; // Données PieChart à jour
+    });
+  }
+
+  final String defaultStation = "TUSSON à EVAILLE";
+
+  @override
+  void initState() {
+    super.initState();
+    loadFishData(); // Appelé une seule fois au démarrage de l'app
+  }
+
+  Future<void> loadFishData() async {
+    String jsonString =
+    await services.rootBundle.loadString('assets/indicateurs.json');
+    var jsonData = jsonDecode(jsonString);
+
+    if (jsonData['data'] != null && jsonData['data'] is List) {
+      for (var station in jsonData['data']) {
+        if (station['libelle_station'] != null &&
+            station['ipr_noms_communs_taxon'] != null &&
+            station['ipr_effectifs_taxon'] != null) {
+          String name = station['libelle_station'];
+          List noms = station['ipr_noms_communs_taxon'];
+          List effectifs = station['ipr_effectifs_taxon'];
+
+          Map<String, double> fishData = {};
+          for (int i = 0; i < noms.length; i++) {
+            int count = effectifs[i];
+            if (count > 0) {
+              fishData[noms[i]] = count.toDouble();
+            }
+          }
+          stationFishData[name] = fishData;
+        }
+      }
+    }
+    if (stationFishData.containsKey(defaultStation)) {
+      updateSelectedStation(defaultStation); // Affiche la station par défaut
+    }
+  }
+
+  List<fl.BarChartGroupData> getBarChartData() {
+    List<fl.BarChartGroupData> barGroups = [];
+    int index = 0;
+    pieData.forEach((name, count) {
+      barGroups.add(
+        fl.BarChartGroupData(
+          x: index,
+          barRods: [
+            fl.BarChartRodData(
+              toY: count,
+              color: Colors.blue,
+              width: 6,
+              borderRadius: BorderRadius.circular(6),
+              // Ajoute le texte directement ici
+              rodStackItems: [],
+              backDrawRodData: fl.BackgroundBarChartRodData(
+                show: true,
+                toY: 0,
+                color: Colors.transparent,
+              ),
+            ),
+          ],
+          showingTooltipIndicators: [],
+        ),
+      );
+      index++;
+    });
+    return barGroups;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    //loadStations();
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        fontFamily: 'Circular',
         useMaterial3: true, // Utilisation de Material 3
       ),
       home: Scaffold(
+        backgroundColor: Colors.grey[200], // Choix de la couleur
         appBar: AppBar(
-          title: Text("Etat piscicole des cours d'eau"),
+          backgroundColor: Colors.grey[200], // Choix de la couleur
+          title: Padding(
+            padding: const EdgeInsets.only(top: 16.0),
+            // espace au-dessus du titre
+            child: Text(
+              "Dashboard des états piscicole des bassins et cours d'eau",
+              style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+            ),
+          ),
           centerTitle: true,
         ),
         body: Row(
@@ -29,379 +184,292 @@ class MyApp extends StatelessWidget {
           // Aligne la carte à gauche
           children: [
             SizedBox(height: 10), // Ajoute un espace vide
-            Expanded(child: MainMapp()),
-            Column(
-              children : [
-                  Card.outlined(child: _SampleCard(cardName: 'Outlined Card')),
-                  Card.outlined(child: _SampleCard(cardName: 'Outlined Card')),
-                  Card.outlined(child: _SampleCard(cardName: 'Outlined Card')),
-              ]
-            )
+            Expanded(
+              flex: 1, // 50% de la page
+              child: Padding(
+                padding: const EdgeInsets.all(16.0), // marge sur tous les côtés
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200], // couleur jsp
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: MainMapp(onStationSelected: updateSelectedStation),
+                  ),
+                ),
+              ),
+            ),
+// ---------------- CONTENEUR DROIT ----------------------
+            Expanded(
+              flex: 1,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        // Titre centré
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            'Station sélectionnée : $selectedStation',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        // Graphique en camembert / pie chart
+                        Expanded(
+                          flex: 1,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 8.0,
+                            ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                //[100], // couleur du fond du pie chart
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  //l'ombre sous les conteneur
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.3),
+                                    spreadRadius: 1,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    double containerWidth = constraints.maxWidth;
+                                    double fontSize = (containerWidth / (pieData.length + 4)).clamp(8, 16);
+
+                                    return pie.PieChart(
+                                      dataMap: pieData.isNotEmpty ? pieData : {"Aucune donnée": 1},
+                                      chartType: pie.ChartType.disc,
+                                      chartValuesOptions: pie.ChartValuesOptions(
+                                        showChartValues: false,
+                                        showChartValuesInPercentage: false,
+                                        showChartValueBackground: false,
+                                      ),
+                                      legendOptions: pie.LegendOptions(
+                                        showLegends: true,
+                                        legendPosition: pie.LegendPosition.right,
+                                        legendTextStyle: TextStyle(
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Graphique à barres / Histogramme
+                        Expanded(
+                          flex: 1,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 8.0,
+                            ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                //[100], //couleur de l'histogramme
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  // Ombre sous le conteneur
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.3),
+                                    spreadRadius: 1,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: fl.BarChart(
+                                  fl.BarChartData(
+                                    barGroups: getBarChartData(),
+                                    borderData: fl.FlBorderData(show: false),
+                                    titlesData: fl.FlTitlesData(
+                                      leftTitles: fl.AxisTitles(
+                                        sideTitles: fl.SideTitles(showTitles: false),
+                                      ),
+                                      rightTitles: fl.AxisTitles(
+                                        sideTitles: fl.SideTitles(showTitles: false),
+                                      ),
+                                      topTitles: fl.AxisTitles(
+                                        sideTitles: fl.SideTitles(
+                                          showTitles: true,
+                                          getTitlesWidget: (value, meta) {
+                                            final keys = pieData.keys.toList();
+                                            final values = pieData.values.toList();
+                                            if (value.toInt() < values.length) {
+                                              return Text('${values[value.toInt()].toInt()}',
+                                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold));
+                                            } else {
+                                              return Text('');
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                      bottomTitles: fl.AxisTitles(
+                                        sideTitles: fl.SideTitles(
+                                          showTitles: true,
+                                          getTitlesWidget: (value, meta) {
+                                            final keys = pieData.keys.toList();
+                                            return Transform.rotate(
+                                              angle: -0.5,
+                                              child: Text(
+                                                value.toInt() < keys.length ? keys[value.toInt()] : '',
+                                                style: TextStyle(fontSize: 10),
+                                              ),
+                                            );
+                                          },
+                                          reservedSize: 60,
+                                        ),
+                                      ),
+                                    ),
+
+                                    gridData: fl.FlGridData(show: true),
+                                  ),
+                                ),
+
+                              ),
+                            ),
+                          ),
+                        ),
+                        // ➕ Graphique supplémentaire (Graph1)
+                        Expanded(
+                          flex: 1,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 8.0,
+                            ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.3),
+                                    spreadRadius: 1,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Graph1(),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
-
   }
 }
 
+class MainMapp extends StatefulWidget {
+  final Function(String) onStationSelected;
 
+  const MainMapp({Key? key, required this.onStationSelected}) : super(key: key);
 
+  @override
+  _MainMappState createState() => _MainMappState();
+}
 
-class MainMapp extends StatelessWidget {
+class _MainMappState extends State<MainMapp> {
+  List<Marker> _markers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMarkers(); // Charger une seule fois
+  }
+
+  void _loadMarkers() async {
+    final markers = await StationMarkerLoader.loadMarkersFromAssetWithCallback((
+      stationName,
+    ) {
+      widget.onStationSelected(stationName); // Appelle le callback externe
+    });
+    setState(() {
+      _markers = markers;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return FlutterMap(
       options: MapOptions(
-        initialCenter: LatLng(46.603354, 1.888334), // Centre sur la France
-        initialZoom: 6.3,
+        initialCenter: LatLng(46.603354, 1.888334),
+        initialZoom: 6.0,
       ),
       children: [
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.example.app',
         ),
-        MarkerLayer(
-          markers: [
-            Marker(
-              point: LatLng(48.8566, 2.3522), // Coordonnées de Paris
-              width: 80,
-              height: 80,
-              child: GestureDetector(
-                onTap: () {
-                  print("Bouton Paris Cliqué");
-                },
-                child: Icon(Icons.location_on, size: 30, color: Colors.red),
-              ),
-            ),
-          ],
-        ),
+        MarkerLayer(markers: _markers),
       ],
     );
   }
 }
 
-
-class _SampleCard extends StatelessWidget {
-  const _SampleCard({required this.cardName});
-  final String cardName;
+// Graph 1
+class Graph1 extends StatelessWidget {
+  const Graph1({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: 300, height: 100, child: Center(child: Text(cardName)));
-  }
-}
-
-
-
-class firstCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.all(10), // Ajoute de l'espace autour de la carte
-      child: InkWell(
-        onTap: () {
-          print('Card Tapped!');
-        },
-        child: Card(
-          color: Colors.grey[300], // Couleur de fond de la carte
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10), // Coins arrondis
+    return fl.LineChart(
+      fl.LineChartData(
+        lineBarsData: [
+          fl.LineChartBarData(
+            isCurved: true,
+            spots: [
+              fl.FlSpot(0, 3),
+              fl.FlSpot(1, 4),
+              fl.FlSpot(2, 5),
+              fl.FlSpot(3, 3.1),
+              fl.FlSpot(4, 4.5),
+              fl.FlSpot(5, 3.8),
+            ],
+            color: Colors.green,
+            barWidth: 3,
+            isStrokeCapRound: true,
+            belowBarData: fl.BarAreaData(show: false),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            // Ajout d'un peu d'espace autour du texte
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              // Alignement du texte à gauche
-              mainAxisSize: MainAxisSize.min,
-              // Taille minimale requise
-              children: <Widget>[
-                Text(
-                  "Batterie interne de l'ECS 2",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Divider(color: Colors.grey),
-                Text("Nombre : 1x 12V"),
-                Text("Capacité : 4 Ah"),
-                Text("Date d'installation : "),
-              ],
-            ),
-          ),
-        ),
+        ],
       ),
-    );
-  }
-}
-
-class twoButtons extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Padding(padding: EdgeInsets.all(6)),
-        const SizedBox(height: 15),
-        FilledButton(
-          onPressed: () {
-            print('Boutton Tension appuyé'); //action du boutton Tension
-          },
-          style: ButtonStyle(
-            backgroundColor: WidgetStateProperty.all(
-              Colors.orangeAccent,
-            ), // Fond jaune
-            foregroundColor: WidgetStateProperty.all(
-              Colors.black,
-            ), // Texte en noir
-          ),
-          child: const Text('Tension'),
-        ),
-        Padding(padding: EdgeInsets.all(10)),
-        const SizedBox(height: 15),
-        FilledButton(
-          onPressed: () {
-            print('Bouton Etat visuel appuyé'); //action du boutton Etat visuel
-          },
-          style: ButtonStyle(
-            backgroundColor: WidgetStateProperty.all(
-              Colors.orangeAccent,
-            ), // Fond jaune
-            foregroundColor: WidgetStateProperty.all(Colors.black),
-          ), // Texte en noir
-          child: const Text('Etat visuel'),
-        ),
-      ],
-    );
-  }
-}
-
-class SegmentedPart extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Padding(padding: EdgeInsets.all(6)),
-        // C'est ici pour l'espace de marge
-        const SizedBox(height: 15),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          //mainAxisSize: MainAxisSize.max,
-          children: [
-            Text('Etat visuel des batteries'),
-            Padding(
-              padding: EdgeInsets.all(1), // Ajoute de la zone de texte
-            ),
-            SimlpleChoix1(),
-            Padding(
-              padding: EdgeInsets.all(5), // Ajoute de la zone de texte
-            ),
-            Text('Intensités : comparaison avec les mesures précédentes'),
-            Padding(
-              padding: EdgeInsets.all(1), // Ajoute de la zone de texte
-            ),
-            SimlpleChoix3(),
-          ],
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          //mainAxisSize: MainAxisSize.max,
-          children: [
-            Text('Etat visuel des batteries'),
-            Padding(
-              padding: EdgeInsets.all(1), // Ajoute de la zone de texte
-            ),
-            SimlpleChoix1(),
-            Padding(
-              padding: EdgeInsets.all(32), // Ajoute de la zone de texte
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-enum Choix1 { S, NS }
-
-class SimlpleChoix1 extends StatefulWidget {
-  const SimlpleChoix1({super.key});
-
-  @override
-  State<SimlpleChoix1> createState() => _SimlpleChoixState1();
-}
-
-class _SimlpleChoixState1 extends State<SimlpleChoix1> {
-  Choix1 SP1 = Choix1.S;
-
-  @override
-  Widget build(BuildContext context) {
-    return SegmentedButton<Choix1>(
-      segments: const <ButtonSegment<Choix1>>[
-        ButtonSegment<Choix1>(value: Choix1.S, label: Text('Satisfaisant')),
-        ButtonSegment<Choix1>(
-          value: Choix1.NS,
-          label: Text('Non Satisfaisant'),
-        ),
-      ],
-      selected: <Choix1>{SP1},
-      onSelectionChanged: (Set<Choix1> newSelection) {
-        setState(() {
-          // By default there is only a single segment that can be
-          // selected at one time, so its value is always the first
-          // item in the selected set.
-          SP1 = newSelection.first;
-        });
-      },
-    );
-  }
-}
-
-enum Choix2 { S, NS }
-
-class SimlpleChoix2 extends StatefulWidget {
-  const SimlpleChoix2({super.key});
-
-  @override
-  State<SimlpleChoix2> createState() => _SimlpleChoixState2();
-}
-
-class _SimlpleChoixState2 extends State<SimlpleChoix2> {
-  Choix2 SP2 = Choix2.S;
-
-  @override
-  Widget build(BuildContext context) {
-    return SegmentedButton<Choix2>(
-      segments: const <ButtonSegment<Choix2>>[
-        ButtonSegment<Choix2>(value: Choix2.S, label: Text('Satisfaisant')),
-        ButtonSegment<Choix2>(
-          value: Choix2.NS,
-          label: Text('Non Satisfaisant'),
-        ),
-      ],
-      selected: <Choix2>{SP2},
-      onSelectionChanged: (Set<Choix2> newSelection) {
-        setState(() {
-          // By default there is only a single segment that can be
-          // selected at one time, so its value is always the first
-          // item in the selected set.
-          SP2 = newSelection.first;
-        });
-      },
-    );
-  }
-}
-
-enum Choix3 { S, NS }
-
-class SimlpleChoix3 extends StatefulWidget {
-  const SimlpleChoix3({super.key});
-
-  @override
-  State<SimlpleChoix3> createState() => _SimlpleChoixState3();
-}
-
-class _SimlpleChoixState3 extends State<SimlpleChoix3> {
-  Choix3 SP3 = Choix3.S;
-
-  @override
-  Widget build(BuildContext context) {
-    return SegmentedButton<Choix3>(
-      segments: const <ButtonSegment<Choix3>>[
-        ButtonSegment<Choix3>(value: Choix3.S, label: Text('Satisfaisant')),
-        ButtonSegment<Choix3>(
-          value: Choix3.NS,
-          label: Text('Non Satisfaisant'),
-        ),
-      ],
-      selected: <Choix3>{SP3},
-      onSelectionChanged: (Set<Choix3> newSelection) {
-        setState(() {
-          // By default there is only a single segment that can be
-          // selected at one time, so its value is always the first
-          // item in the selected set.
-          SP3 = newSelection.first;
-        });
-      },
-    );
-  }
-}
-
-class firstFieldText extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Padding(padding: EdgeInsets.all(6)),
-        const SizedBox(height: 15),
-        Expanded(
-          child: TextField(
-            decoration: InputDecoration(
-              labelText: 'En charge',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        SizedBox(width: 10), // Ajoute un espace vide
-        Expanded(
-          child: TextField(
-            decoration: InputDecoration(
-              labelText: 'En début de décharge',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        SizedBox(width: 10), // Ajoute un espace vide
-        Expanded(
-          child: TextField(
-            decoration: InputDecoration(
-              labelText: 'Après 1h de décharge',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        Padding(padding: EdgeInsets.all(6)),
-        const SizedBox(height: 15),
-      ],
-    );
-  }
-}
-
-class secondFieldText extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Padding(padding: EdgeInsets.all(6)),
-        const SizedBox(height: 15),
-        Expanded(
-          child: TextField(
-            decoration: InputDecoration(
-              labelText: 'Intensité en veille à T0',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        SizedBox(width: 10), // Ajoute un espace vide
-        Expanded(
-          child: TextField(
-            decoration: InputDecoration(
-              labelText: 'Intensité en alarme',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        SizedBox(width: 10), // Ajoute un espace vide
-        Expanded(
-          child: TextField(
-            enabled: false, // Pour empêcher l'écriture
-            decoration: InputDecoration(
-              labelText: 'Consommation Calculée',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        Padding(padding: EdgeInsets.all(6)),
-        const SizedBox(height: 15),
-      ],
     );
   }
 }
