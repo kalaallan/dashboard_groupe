@@ -95,6 +95,8 @@ class _MyAppState extends State<MyApp> {
     loadFishData(); // Appelé une seule fois au démarrage de l'app
   }
 
+  Map<String, String> stationDates = {};  // Map pour stocker les dates de relevé
+
   Future<void> loadFishData() async {
     String jsonString = await services.rootBundle.loadString(
       'assets/indicateurs.json',
@@ -105,10 +107,15 @@ class _MyAppState extends State<MyApp> {
       for (var station in jsonData['data']) {
         if (station['libelle_station'] != null &&
             station['ipr_noms_communs_taxon'] != null &&
-            station['ipr_effectifs_taxon'] != null) {
+            station['ipr_effectifs_taxon'] != null &&
+            station['date_operation'] != null) {
           String name = station['libelle_station'];
           List noms = station['ipr_noms_communs_taxon'];
           List effectifs = station['ipr_effectifs_taxon'];
+          String rawDate = station['date_operation'];
+
+          // Convertir la date
+          String formattedDate = formatDate(rawDate);
 
           Map<String, double> fishData = {};
           for (int i = 0; i < noms.length; i++) {
@@ -118,6 +125,9 @@ class _MyAppState extends State<MyApp> {
             }
           }
           stationFishData[name] = fishData;
+
+          // Stocker la dernière date de relevé dans un Map séparé
+          stationDates[name] = formattedDate;
         }
       }
     }
@@ -125,6 +135,12 @@ class _MyAppState extends State<MyApp> {
       updateSelectedStation(defaultStation); // Affiche la station par défaut
     }
   }
+
+  String formatDate(String rawDate) {
+    DateTime date = DateTime.parse(rawDate);
+    return "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
+  }
+
 
   List<fl.BarChartGroupData> getBarChartData() {
     List<fl.BarChartGroupData> barGroups = [];
@@ -225,9 +241,11 @@ class _MyAppState extends State<MyApp> {
                           ),
                         ),
 
+
+
                         // Graphique en camembert / pie chart
                         Expanded(
-                          flex: 1,
+                          flex: 2,
                           child: Column(
                             children: [
                               // Texte au dessus du pie Chart
@@ -251,8 +269,7 @@ class _MyAppState extends State<MyApp> {
                                   },
                                 ),
                               ),
-
-                              // L'histogramme lui-même
+                              // PIE CHART ICI
                               Expanded(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -319,7 +336,7 @@ class _MyAppState extends State<MyApp> {
 
                         // Graphique à barres / Histogramme
                         Expanded(
-                          flex: 1,
+                          flex: 2,
                           child: Column(
                             children: [
                               // Texte au-dessus de l'histogramme
@@ -462,34 +479,18 @@ class _MyAppState extends State<MyApp> {
                           ),
                         ),
 
-                        // ➕ Graphique supplémentaire (Graph1)
-                        Expanded(
-                          flex: 1,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
-                              vertical: 8.0,
-                            ),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(0.3),
-                                    spreadRadius: 1,
-                                    blurRadius: 6,
-                                    offset: Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: const Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Graph1(),
-                              ),
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            'Dernier relevé disponible : ${stationDates[selectedStation] ?? 'Aucune donnée'}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              //fontSize: 20,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
+
                       ],
                     ),
                   ),
@@ -550,32 +551,5 @@ class _MainMappState extends State<MainMapp> {
   }
 }
 
-// Graph 1
-class Graph1 extends StatelessWidget {
-  const Graph1({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return fl.LineChart(
-      fl.LineChartData(
-        lineBarsData: [
-          fl.LineChartBarData(
-            isCurved: true,
-            spots: [
-              fl.FlSpot(0, 3),
-              fl.FlSpot(1, 4),
-              fl.FlSpot(2, 5),
-              fl.FlSpot(3, 3.1),
-              fl.FlSpot(4, 4.5),
-              fl.FlSpot(5, 3.8),
-            ],
-            color: Colors.green,
-            barWidth: 3,
-            isStrokeCapRound: true,
-            belowBarData: fl.BarAreaData(show: false),
-          ),
-        ],
-      ),
-    );
-  }
-}
+
