@@ -80,10 +80,29 @@ class _MyAppState extends State<MyApp> {
       {}; // Toutes les données espèces/stations
   Map<String, double> pieData = {}; // Données à afficher dans le PieChart
 
+  String simplifierNomPoisson(String nom) {
+    if (nom.contains("Carassin indéterminé")) return "Carassin";
+    if (nom.contains("Goujon indéterminé")) return "Goujon";
+    if (nom.contains("Vairon indéterminé")) return "Vairon";
+    return nom;
+  }
+
   void updateSelectedStation(String name) {
     setState(() {
       selectedStation = name;
-      pieData = stationFishData[name] ?? {}; // Données PieChart à jour
+
+      final rawData = stationFishData[name] ?? {};
+      final Map<String, double> simplifiedData = {};
+
+      rawData.forEach((key, value) {
+        final simplifiedKey = simplifierNomPoisson(key);
+        if (value > 0) {
+          simplifiedData[simplifiedKey] =
+              (simplifiedData[simplifiedKey] ?? 0) + value;
+        }
+      });
+
+      pieData = simplifiedData;
     });
   }
 
@@ -141,6 +160,46 @@ class _MyAppState extends State<MyApp> {
     return "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
   }
 
+  final List<String> poissonsPechables = [
+    'Ablette',
+    'Barbeau fluviatile',
+    'Barbeau méridional',
+    'Blageon',
+    'Bouvière',
+    'Gardon',
+    'Goujon indéterminé (Gobio)',
+    'Grémille',
+    'Hotu',
+    'Loche franche',
+    'Ombre commun',
+    'Perche soleil',
+    'Vairon indéterminé (Phoxinus)',
+    'Rotengle',
+    'Brème commune',
+    'Epinoche',
+    'Spirlin',
+    'Tanche',
+    'Vandoise',
+  ];
+
+  List<String> getPoissonsPechables() {
+    final List<String> listePechables = [
+      "Ablette", "Barbeau fluviatile", "Barbeau méridional", "Blageon", "Bouvière",
+      "Gardon", "Goujon", "Grémille", "Hotu", "Loche franche", "Ombre commun",
+      "Perche soleil", "Vairon", "Rotengle", "Brème commune", "Epinoche",
+      "Spirlin", "Tanche", "Vandoise", "Epinochette"
+    ];
+
+    final pechables = <String>[];
+
+    pieData.forEach((poisson, effectif) {
+      if (listePechables.contains(poisson) && effectif > 100) {
+        pechables.add(poisson);
+      }
+    });
+
+    return pechables;
+  }
 
   List<fl.BarChartGroupData> getBarChartData() {
     List<fl.BarChartGroupData> barGroups = [];
@@ -182,12 +241,14 @@ class _MyAppState extends State<MyApp> {
         backgroundColor: Colors.grey[200], // Choix de la couleur
         appBar: AppBar(
           backgroundColor: Colors.grey[200], // Choix de la couleur
+          elevation: 0, // Supprime l’ombre de l’AppBar
           title: Padding(
             padding: const EdgeInsets.only(top: 16.0),
             // espace au-dessus du titre
+
             child: Text(
               "État piscicole des bassins et cours d'eau",
-              style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
             ),
           ),
           centerTitle: true,
@@ -246,30 +307,8 @@ class _MyAppState extends State<MyApp> {
                         // Graphique en camembert / pie chart
                         Expanded(
                           flex: 2,
-                          child: Column(
+                          child:Column(
                             children: [
-                              // Texte au dessus du pie Chart
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8.0),
-                                child: Builder(
-                                  builder: (context) {
-                                    //final sortedEntries = pieData.entries.toList()
-                                    //..sort((a, b) => b.value.compareTo(a.value));
-                                    //final topFive = sortedEntries.take(5).toList();
-                                    //final totalTopFive = topFive.fold<int>(0, (sum, e) => sum + e.value.toInt());
-
-                                    return Text(
-                                      'Répartition du nombre de poissons :',
-                                      // $totalTopFive
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              // PIE CHART ICI
                               Expanded(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -279,10 +318,8 @@ class _MyAppState extends State<MyApp> {
                                   child: Container(
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      //[100], // couleur du fond du pie chart
                                       borderRadius: BorderRadius.circular(20),
                                       boxShadow: [
-                                        //l'ombre sous les conteneur
                                         BoxShadow(
                                           color: Colors.grey.withOpacity(0.3),
                                           spreadRadius: 1,
@@ -293,38 +330,45 @@ class _MyAppState extends State<MyApp> {
                                     ),
                                     child: Padding(
                                       padding: const EdgeInsets.all(16.0),
-                                      child: LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          double containerWidth =
-                                              constraints.maxWidth;
-                                          double fontSize = (containerWidth /
-                                                  (pieData.length + 4))
-                                              .clamp(8, 16);
-
-                                          return pie.PieChart(
-                                            dataMap:
-                                                pieData.isNotEmpty
-                                                    ? pieData
-                                                    : {"Aucune donnée": 1},
-                                            chartType: pie.ChartType.disc,
-                                            chartValuesOptions:
-                                                pie.ChartValuesOptions(
-                                                  showChartValues: false,
-                                                  showChartValuesInPercentage:
-                                                      false,
-                                                  showChartValueBackground:
-                                                      false,
-                                                ),
-                                            legendOptions: pie.LegendOptions(
-                                              showLegends: true,
-                                              legendPosition:
-                                                  pie.LegendPosition.right,
-                                              legendTextStyle: TextStyle(
-                                                fontSize: 12,
-                                              ),
+                                      child: Column(
+                                        children: [
+                                          Text(
+                                            'Répartition du nombre de poissons :',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
                                             ),
-                                          );
-                                        },
+                                          ),
+                                          SizedBox(height: 12),
+                                          Expanded(
+                                            child: LayoutBuilder(
+                                              builder: (context, constraints) {
+                                                double containerWidth = constraints.maxWidth;
+                                                double fontSize =
+                                                (containerWidth / (pieData.length + 4)).clamp(8, 16);
+
+                                                return pie.PieChart(
+                                                  dataMap: pieData.isNotEmpty
+                                                      ? pieData
+                                                      : {"Aucune donnée": 1},
+                                                  chartType: pie.ChartType.disc,
+                                                  chartValuesOptions: pie.ChartValuesOptions(
+                                                    showChartValues: false,
+                                                    showChartValuesInPercentage: false,
+                                                    showChartValueBackground: false,
+                                                  ),
+                                                  legendOptions: pie.LegendOptions(
+                                                    showLegends: true,
+                                                    legendPosition: pie.LegendPosition.right,
+                                                    legendTextStyle: TextStyle(
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -332,42 +376,19 @@ class _MyAppState extends State<MyApp> {
                               ),
                             ],
                           ),
+
                         ),
 
                         // Graphique à barres / Histogramme
                         Expanded(
                           flex: 2,
-                          child: Column(
+                          child: Row(
                             children: [
-                              // Texte au-dessus de l'histogramme
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8.0),
-                                child: Builder(
-                                  builder: (context) {
-                                    //final sortedEntries = pieData.entries.toList()
-                                    //..sort((a, b) => b.value.compareTo(a.value));
-                                    //final topFive = sortedEntries.take(5).toList();
-                                    //final totalTopFive = topFive.fold<int>(0, (sum, e) => sum + e.value.toInt());
-
-                                    return Text(
-                                      'Top 5 du nombre de poissons :',
-                                      // $totalTopFive
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-
-                              // L'histogramme lui-même
+                              // Histogramme à gauche
                               Expanded(
+                                flex: 1,
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16.0,
-                                    vertical: 8.0,
-                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                                   child: Container(
                                     decoration: BoxDecoration(
                                       color: Colors.white,
@@ -383,93 +404,129 @@ class _MyAppState extends State<MyApp> {
                                     ),
                                     child: Padding(
                                       padding: const EdgeInsets.all(16.0),
-                                      child: fl.BarChart(
-                                        fl.BarChartData(
-                                          barGroups: getBarChartData(),
-                                          borderData: fl.FlBorderData(
-                                            show: false,
+                                      child: Column(
+                                        children: [
+                                          Text(
+                                            'Top 5 nombre de poissons disponibles :',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
-                                          titlesData: fl.FlTitlesData(
-                                            leftTitles: fl.AxisTitles(
-                                              sideTitles: fl.SideTitles(
-                                                showTitles: false,
-                                              ),
-                                            ),
-                                            rightTitles: fl.AxisTitles(
-                                              sideTitles: fl.SideTitles(
-                                                showTitles: false,
-                                              ),
-                                            ),
-                                            topTitles: fl.AxisTitles(
-                                              sideTitles: fl.SideTitles(
-                                                showTitles: true,
-                                                getTitlesWidget: (value, meta) {
-                                                  final sortedEntries =
-                                                      pieData.entries.toList()
-                                                        ..sort(
-                                                          (a, b) =>
-                                                              b.value.compareTo(
-                                                                a.value,
-                                                              ),
-                                                        ); // On garde le top 5
-
-                                                  if (value.toInt() <
-                                                      sortedEntries.length) {
-                                                    final entry =
-                                                        sortedEntries[value
-                                                            .toInt()];
-                                                    return Text(
-                                                      '${entry.value.toInt()}',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    );
-                                                  } else {
-                                                    return Text('');
-                                                  }
-                                                },
-                                              ),
-                                            ),
-                                            bottomTitles: fl.AxisTitles(
-                                              sideTitles: fl.SideTitles(
-                                                showTitles: true,
-                                                getTitlesWidget: (value, meta) {
-                                                  final sortedKeys =
-                                                      pieData.entries.toList()
-                                                        ..sort(
-                                                          (a, b) =>
-                                                              b.value.compareTo(
-                                                                a.value,
-                                                              ),
-                                                        );
-                                                  final topKeys =
-                                                      sortedKeys
-                                                          .take(5)
-                                                          .map((e) => e.key)
-                                                          .toList();
-
-                                                  return Transform.rotate(
-                                                    angle: -0.5,
-                                                    child: Text(
-                                                      value.toInt() <
-                                                              topKeys.length
-                                                          ? topKeys[value
-                                                              .toInt()]
-                                                          : '',
-                                                      style: TextStyle(
-                                                        fontSize: 10,
-                                                      ),
+                                          SizedBox(height: 12),
+                                          Expanded(
+                                            child: fl.BarChart(
+                                              fl.BarChartData(
+                                                barGroups: getBarChartData(),
+                                                borderData: fl.FlBorderData(show: false),
+                                                titlesData: fl.FlTitlesData(
+                                                  leftTitles: fl.AxisTitles(
+                                                    sideTitles: fl.SideTitles(showTitles: false),
+                                                  ),
+                                                  rightTitles: fl.AxisTitles(
+                                                    sideTitles: fl.SideTitles(showTitles: false),
+                                                  ),
+                                                  topTitles: fl.AxisTitles(
+                                                    sideTitles: fl.SideTitles(
+                                                      showTitles: true,
+                                                      getTitlesWidget: (value, meta) {
+                                                        final sortedEntries = pieData.entries.toList()
+                                                          ..sort((a, b) => b.value.compareTo(a.value));
+                                                        if (value.toInt() < sortedEntries.length) {
+                                                          final entry = sortedEntries[value.toInt()];
+                                                          return Text(
+                                                            '${entry.value.toInt()}',
+                                                            style: TextStyle(
+                                                              fontSize: 12,
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                          );
+                                                        } else {
+                                                          return Text('');
+                                                        }
+                                                      },
                                                     ),
-                                                  );
-                                                },
-                                                reservedSize: 60,
+                                                  ),
+                                                  bottomTitles: fl.AxisTitles(
+                                                    sideTitles: fl.SideTitles(
+                                                      showTitles: true,
+                                                      getTitlesWidget: (value, meta) {
+                                                        final sortedKeys = pieData.entries.toList()
+                                                          ..sort((a, b) => b.value.compareTo(a.value));
+                                                        final topKeys = sortedKeys
+                                                            .take(5)
+                                                            .map((e) => e.key)
+                                                            .toList();
+
+                                                        return Transform.rotate(
+                                                          angle: -0.5,
+                                                          child: Text(
+                                                            value.toInt() < topKeys.length
+                                                                ? topKeys[value.toInt()]
+                                                                : '',
+                                                            style: TextStyle(fontSize: 10),
+                                                          ),
+                                                        );
+                                                      },
+                                                      reservedSize: 60,
+                                                    ),
+                                                  ),
+                                                ),
+                                                gridData: fl.FlGridData(show: false),
                                               ),
                                             ),
                                           ),
-                                          gridData: fl.FlGridData(show: true),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // Poissons pêchables à droite
+                              Expanded(
+                                flex: 1,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.grey.withOpacity(0.3),
+                                          spreadRadius: 1,
+                                          blurRadius: 6,
+                                          offset: Offset(0, 3),
                                         ),
+                                      ],
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Poissons pêchables sans réglementations particulières (>100 individus) :',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          SizedBox(height: 12),
+                                          ...getPoissonsPechables().map((poisson) => Text(
+                                            '- $poisson',
+                                            style: TextStyle(fontSize: 14),
+                                          )),
+                                          if (getPoissonsPechables().isEmpty)
+                                            Text(
+                                              'Aucun poisson pêchable dans cette station.',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -479,10 +536,13 @@ class _MyAppState extends State<MyApp> {
                           ),
                         ),
 
+
+
+
                         Padding(
                           padding: const EdgeInsets.all(16.0),
                           child: Text(
-                            'Dernier relevé disponible : ${stationDates[selectedStation] ?? 'Aucune donnée'}',
+                            'Dernier relevé disponible pour la station selectionnée : ${stationDates[selectedStation] ?? 'Aucune donnée'}',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               //fontSize: 20,
