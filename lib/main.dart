@@ -252,7 +252,7 @@ class _MyAppState extends State<MyApp> {
             ),
           ),
           centerTitle: true,
-        ),
+        ),/*
         body: Row(
           mainAxisAlignment: MainAxisAlignment.start,
           // Positionne le contenu en haut
@@ -558,7 +558,525 @@ class _MyAppState extends State<MyApp> {
               ),
             ),
           ],
+        ),*/
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWideScreen = constraints.maxWidth >= 1200;
+
+            final leftPanel = Expanded(
+              flex: 1,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: MainMapp(onStationSelected: updateSelectedStation),
+                  ),
+                ),
+              ),
+            );
+
+            final rightPanel = Expanded(
+              flex: 1,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        // Titre centré
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            'Station sélectionnée : $selectedStation',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+
+
+
+                        // Graphique en camembert / pie chart
+                        Expanded(
+                          flex: 2,
+                          child:Column(
+                            children: [
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0,
+                                    vertical: 8.0,
+                                  ),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.grey.withOpacity(0.3),
+                                          spreadRadius: 1,
+                                          blurRadius: 6,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        children: [
+                                          Text(
+                                            'Répartition du nombre de poissons :',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          SizedBox(height: 12),
+                                          Expanded(
+                                            child: LayoutBuilder(
+                                              builder: (context, constraints) {
+                                                double containerWidth = constraints.maxWidth;
+                                                double fontSize =
+                                                (containerWidth / (pieData.length + 4)).clamp(8, 16);
+
+                                                return pie.PieChart(
+                                                  dataMap: pieData.isNotEmpty
+                                                      ? pieData
+                                                      : {"Aucune donnée": 1},
+                                                  chartType: pie.ChartType.disc,
+                                                  chartValuesOptions: pie.ChartValuesOptions(
+                                                    showChartValues: false,
+                                                    showChartValuesInPercentage: false,
+                                                    showChartValueBackground: false,
+                                                  ),
+                                                  legendOptions: pie.LegendOptions(
+                                                    showLegends: true,
+                                                    legendPosition: pie.LegendPosition.right,
+                                                    legendTextStyle: TextStyle(
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                        ),
+
+                        // Graphique à barres / Histogramme
+                        Expanded(
+                          flex: 2,
+                          child: Row(
+                            children: [
+                              // Histogramme à gauche
+                              Expanded(
+                                flex: 1,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.grey.withOpacity(0.3),
+                                          spreadRadius: 1,
+                                          blurRadius: 6,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        children: [
+                                          Text(
+                                            'Top 5 nombre de poissons disponibles :',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          SizedBox(height: 12),
+                                          Expanded(
+                                            child: fl.BarChart(
+                                              fl.BarChartData(
+                                                barGroups: getBarChartData(),
+                                                borderData: fl.FlBorderData(show: false),
+                                                titlesData: fl.FlTitlesData(
+                                                  leftTitles: fl.AxisTitles(
+                                                    sideTitles: fl.SideTitles(showTitles: false),
+                                                  ),
+                                                  rightTitles: fl.AxisTitles(
+                                                    sideTitles: fl.SideTitles(showTitles: false),
+                                                  ),
+                                                  topTitles: fl.AxisTitles(
+                                                    sideTitles: fl.SideTitles(
+                                                      showTitles: true,
+                                                      getTitlesWidget: (value, meta) {
+                                                        final sortedEntries = pieData.entries.toList()
+                                                          ..sort((a, b) => b.value.compareTo(a.value));
+                                                        if (value.toInt() < sortedEntries.length) {
+                                                          final entry = sortedEntries[value.toInt()];
+                                                          return Text(
+                                                            '${entry.value.toInt()}',
+                                                            style: TextStyle(
+                                                              fontSize: 12,
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                          );
+                                                        } else {
+                                                          return Text('');
+                                                        }
+                                                      },
+                                                    ),
+                                                  ),
+                                                  bottomTitles: fl.AxisTitles(
+                                                    sideTitles: fl.SideTitles(
+                                                      showTitles: true,
+                                                      getTitlesWidget: (value, meta) {
+                                                        final sortedKeys = pieData.entries.toList()
+                                                          ..sort((a, b) => b.value.compareTo(a.value));
+                                                        final topKeys = sortedKeys
+                                                            .take(5)
+                                                            .map((e) => e.key)
+                                                            .toList();
+
+                                                        return Transform.rotate(
+                                                          angle: -0.5,
+                                                          child: Text(
+                                                            value.toInt() < topKeys.length
+                                                                ? topKeys[value.toInt()]
+                                                                : '',
+                                                            style: TextStyle(fontSize: 10),
+                                                          ),
+                                                        );
+                                                      },
+                                                      reservedSize: 60,
+                                                    ),
+                                                  ),
+                                                ),
+                                                gridData: fl.FlGridData(show: false),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // Poissons pêchables à droite
+                              Expanded(
+                                flex: 1,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.grey.withOpacity(0.3),
+                                          spreadRadius: 1,
+                                          blurRadius: 6,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Poissons pêchables sans réglementations particulières (>100 individus) :',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          SizedBox(height: 12),
+                                          ...getPoissonsPechables().map((poisson) => Text(
+                                            '- $poisson',
+                                            style: TextStyle(fontSize: 14),
+                                          )),
+                                          if (getPoissonsPechables().isEmpty)
+                                            Text(
+                                              'Aucun poisson pêchable dans cette station.',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+
+
+
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            'Dernier relevé disponible pour la station selectionnée : ${stationDates[selectedStation] ?? 'Aucune donnée'}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              //fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+
+            return isWideScreen
+                ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [leftPanel, rightPanel],
+            )
+                : SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Carte
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Container(
+                      height: 300,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: MainMapp(onStationSelected: updateSelectedStation),
+                      ),
+                    ),
+                  ),
+
+                  // Contenu droit mis à jour
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        // Titre centré
+                        Text(
+                          'Station sélectionnée : $selectedStation',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        SizedBox(height: 16),
+
+                        // Pie Chart
+                        Container(
+                          height: 300,
+                          padding: const EdgeInsets.all(16.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.3),
+                                spreadRadius: 1,
+                                blurRadius: 6,
+                                offset: Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Répartition du nombre de poissons :',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              SizedBox(height: 12),
+                              Expanded(
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    double fontSize = (constraints.maxWidth / (pieData.length + 4)).clamp(8, 16);
+                                    return pie.PieChart(
+                                      dataMap: pieData.isNotEmpty ? pieData : {"Aucune donnée": 1},
+                                      chartType: pie.ChartType.disc,
+                                      chartValuesOptions: pie.ChartValuesOptions(
+                                        showChartValues: false,
+                                      ),
+                                      legendOptions: pie.LegendOptions(
+                                        showLegends: true,
+                                        legendPosition: pie.LegendPosition.right,
+                                        legendTextStyle: TextStyle(fontSize: fontSize),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        SizedBox(height: 16),
+
+                        // Histogramme
+                        Container(
+                          height: 300,
+                          padding: const EdgeInsets.all(16.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.3),
+                                spreadRadius: 1,
+                                blurRadius: 6,
+                                offset: Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Top 5 nombre de poissons disponibles :',
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                              ),
+                              SizedBox(height: 12),
+                              Expanded(
+                                child: fl.BarChart(
+                                  fl.BarChartData(
+                                    barGroups: getBarChartData(),
+                                    borderData: fl.FlBorderData(show: false),
+                                    titlesData: fl.FlTitlesData(
+                                      leftTitles: fl.AxisTitles(sideTitles: fl.SideTitles(showTitles: false)),
+                                      rightTitles: fl.AxisTitles(sideTitles: fl.SideTitles(showTitles: false)),
+                                      topTitles: fl.AxisTitles(
+                                        sideTitles: fl.SideTitles(
+                                          showTitles: true,
+                                          getTitlesWidget: (value, meta) {
+                                            final sortedEntries = pieData.entries.toList()
+                                              ..sort((a, b) => b.value.compareTo(a.value));
+                                            if (value.toInt() < sortedEntries.length) {
+                                              final entry = sortedEntries[value.toInt()];
+                                              return Text('${entry.value.toInt()}', style: TextStyle(fontSize: 12));
+                                            }
+                                            return Text('');
+                                          },
+                                        ),
+                                      ),
+                                      bottomTitles: fl.AxisTitles(
+                                        sideTitles: fl.SideTitles(
+                                          showTitles: true,
+                                          getTitlesWidget: (value, meta) {
+                                            final sortedKeys = pieData.entries.toList()
+                                              ..sort((a, b) => b.value.compareTo(a.value));
+                                            final topKeys = sortedKeys.take(5).map((e) => e.key).toList();
+
+                                            return Transform.rotate(
+                                              angle: -0.5,
+                                              child: Text(
+                                                value.toInt() < topKeys.length ? topKeys[value.toInt()] : '',
+                                                style: TextStyle(fontSize: 10),
+                                              ),
+                                            );
+                                          },
+                                          reservedSize: 60,
+                                        ),
+                                      ),
+                                    ),
+                                    gridData: fl.FlGridData(show: false),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        SizedBox(height: 16),
+
+                        // Liste des poissons pêchables
+                        Container(
+                          padding: const EdgeInsets.all(16.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.3),
+                                spreadRadius: 1,
+                                blurRadius: 6,
+                                offset: Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Poissons pêchables sans réglementations particulières (>100 individus) :',
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                              ),
+                              SizedBox(height: 12),
+                              ...getPoissonsPechables().map((poisson) => Text('- $poisson')),
+                              if (getPoissonsPechables().isEmpty)
+                                Text(
+                                  'Aucun poisson pêchable dans cette station.',
+                                  style: TextStyle(fontStyle: FontStyle.italic),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        SizedBox(height: 16),
+
+                        // Dernier relevé
+                        Text(
+                          'Dernier relevé disponible pour la station selectionnée : ${stationDates[selectedStation] ?? 'Aucune donnée'}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+
+          },
         ),
+
       ),
     );
   }
